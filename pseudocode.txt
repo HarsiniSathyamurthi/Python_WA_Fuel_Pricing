@@ -1,0 +1,126 @@
+START
+    # --- Section 1: Setting up to analyse the dataset ---
+    # Importing necessary libraries
+    IMPORT math
+    IMPORT os
+    IMPORT pandas AS pd
+    IMPORT numpy AS np
+    IMPORT matplotlib.pyplot AS plt
+    FROM datetime IMPORT datetime
+
+    # Check working directory path
+    SET working_directory <- CALL os.getcwd()
+    OUTPUT working_directory W/PROMPT "Working Directory: "
+
+    # Load dataset
+    WA_fuel_df <- LOAD fuel_data FROM "WA_fuel_data.csv"
+    
+    # --- Section 2: Exploring, Cleaning and Pre-processing the dataset ---
+    # Initial exploration
+    OUTPUT WA_fuel_df HEAD ROWS
+    OUTPUT WA_fuel_df COLUMNS
+    OUTPUT WA_fuel_df INDEX
+
+    # Remove missing values
+    OUTPUT WA_fuel_df IS NOT APPLICABLE
+    WA_fuel_df <- DROP NOT APPLICABLE ROWS OF WA_fuel_df
+
+    # Summary statistics
+    OUTPUT DESCRIBE SUMMARY STATISTICS OF WA_fuel_df
+
+    # Convert publish_date to datetime format
+    publish_date OF WA_fuel_df <- CREATE DATETIME FOR publish_date OF WA_fuel_df
+
+    # Create month and week columns
+    month OF WA_fuel_df <- FORMAT publish_date OF WA_fuel_df AS "YYYY-MM"
+    week OF WA_fuel_df <- FORMAT publish_date OF WA_fuel_df AS "YYYY-WW"
+
+    # Standardise brand and fuel names
+    brand_description OF WA_fuel_df <- CAPITALISE brand_description OF WA_fuel_df
+    product_description OF WA_fuel_df <- CONVERT TO UPPERCASE product_description OF WA_fuel_df
+
+    # --- Section 3: Monthly average prices by fuel type ---
+    GROUP WA_fuel_df BY month, product_description OF WA_fuel_df
+    CALCULATE MEAN OF product_price OF WA_fuel_df
+    STORE RESULT IN monthly_avg_prices
+    
+    # Line plot for fuel trend
+    FOR each fuel IN UNIQUE product_description:
+        FILTER WA_fuel_df FOR fuel
+        PLOT IN LINE 'month' VS 'product_price' 
+    END FOR
+
+    # --- Section 4: High/low price by fuel type ---
+    SET fuel_price_high_low <- EMPTY LIST
+
+    FOR each fuel_type IN UNIQUE product_description:
+        FILTER WA_fuel_df FOR fuel_type
+        FIND MAX price AND date
+        FIND MIN price AND date
+        APPEND TO fuel_price_high_low
+    END FOR
+
+    CONVERT fuel_price_high_low TO DATAFRAME
+    OUTPUT fuel_price_high_low_df
+
+    # --- Section 5: Regional diesel price analysis ---
+    FILTER WA_fuel_df 
+    FOR DIESEL 
+    INTO diesel_data
+
+    GROUP diesel_data BY month, region_description
+    CALCULATE MEAN OF product_price
+    STORE RESULT IN diesel_monthly_avg_region
+    OUTPUT diesel_monthly_avg_region
+
+    SET diesel_region_high_low <- EMPTY LIST
+
+    FOR each region IN UNIQUE region_description:
+        FILTER diesel_data FOR region
+        FIND MAX and MIN price AND dates
+        APPEND TO diesel_region_high_low
+    END FOR
+
+    CONVERT diesel_region_high_low TO DATAFRAME
+    OUTPUT diesel_region_high_low_df
+
+    # --- Section 6: Weekly prices for Puma and Vibe ---
+    FILTER WA_fuel_df 
+    WHERE brand IS Puma OR Vibe 
+    INTO selected_brands_df
+
+    GROUP selected_brands_df 
+    BY brand_description, week, product_description
+    CALCULATE MEAN OF product_price
+    STORE IN weekly_brand_prices
+
+    FUNCTION: plot_brand_weekly_trends
+    IMPORT: brand
+    NOTES: This plotting function is for weekly trend line per fuel
+        FILTER weekly_brand_prices FOR brand
+        FOR each fuel IN product_description:
+            PLOT week VS product_price 
+        END FOR
+        DISPLAY plot
+    END FUNCTION
+
+    CALL plot_brand_weekly_trends WITH ("Puma")
+    CALL plot_brand_weekly_trends WITH ("Vibe")
+
+    # --- Section 7: Price range reference ticks ---
+    SET price_ticks <- RANGE FROM 0 TO MAX(product_price), STEP 10
+    OUTPUT price_ticks
+
+    # --- Section 8: Interpretation of brand and fuel price trends ---
+    OUTPUT:
+        "Diesel remained consistently priced; premium fuels like 98 RON showed volatility."
+        "Puma priced higher with stability; Vibe remained low-cost but steady."
+        "Both brands followed market trends, not reactive pricing changes."
+
+    # --- Section 9: Challenges and insights for business decision-making ---
+    OUTPUT:
+        "Grouping time-series data was tricky; solved using .strftime() and standardised labels."
+        "Plotting multiple fuel types clearly was difficult; improved using matplotlib formatting."
+        "Final insights help retailers plan fuel strategy, pricing, and inventory decisions."
+
+END
